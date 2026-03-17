@@ -28,9 +28,9 @@ Predict the transcriptional response (differential expression across **5,127 gen
 Three-phase approach, from simple to complex:
 
 ```
-[Phase 1]  STRING KNN Baseline          →  submission_knn.csv
-[Phase 2]  GEARS-style GAT (5-fold CV)  →  submission_gnn.csv
-[Phase 3]  Ridge · GNN v2 · CPA · Blend →  submission_ensemble_v2.csv  ← best
+[Phase 1]  STRING KNN Baseline                    →  submission_knn.csv
+[Phase 2]  GEARS-style GAT (5-fold CV)            →  submission_gnn.csv
+[Phase 3]  Ridge · GNN v2 · CPA · GNN v3 · Blend →  submission_gnn_v3_local.csv  ← best
 ```
 
 ### Results
@@ -44,7 +44,8 @@ Three-phase approach, from simple to complex:
 | Ridge (linear) | ~0.120 | Phase 3 |
 | GNN v2 + MCDropout | ~0.115 | Phase 3 |
 | CPA | ~0.118 | Phase 3 |
-| **Ensemble v2** | **~0.110** | Phase 3, blended |
+| Ensemble v2 | ~0.110 | Phase 3, blended |
+| **GNN v3 (TransformerConv + TF edges)** | **best** | Phase 3 ← final submission |
 
 ---
 
@@ -87,6 +88,7 @@ Stage 2 — Perturbation Propagator (one forward pass per perturbation):
 | **Ridge Pairwise** | Adds `pert_feat × target_feat` interaction terms. |
 | **GNN v2** | GNN v1 + gene-program output head (K=64) + MCDropout TTA (30 passes/fold) + warm restarts |
 | **CPA** | Compositional Perturbation Autoencoder: `Encoder → z_basal + δ_pert → Decoder`. Cell-level, different inductive bias. |
+| **GNN v3** ← best | TransformerConv (dot-product attention) + directed TF regulatory edges (TRRUST) + edge-type encoding + optional global context layer (VirtualNode-style). Improves on v2 by letting the model distinguish PPI, TF-activating, and TF-repressing signals. |
 | **Ensemble v2** | Blend all submissions; `--optimise` finds weights via Nelder-Mead on OOF predictions. |
 
 ---
@@ -109,12 +111,18 @@ Stage 2 — Perturbation Propagator (one forward pass per perturbation):
 │   ├── train_v2.py            # Phase 3: GNN v2 training
 │   ├── predict_v2.py          # Phase 3: GNN v2 submission (+ MCDropout TTA)
 │   ├── cpa_model.py           # Phase 3: CPA model
+│   ├── graph_builder_v3.py    # Phase 3: graph with directed TF edges (TRRUST)
+│   ├── gnn_model_v3.py        # Phase 3: GNN v3 (TransformerConv + edge types)
+│   ├── train_v3_local.py      # Phase 3: GNN v3 training
+│   ├── predict_v3_local.py    # Phase 3: GNN v3 submission ← final
 │   ├── ensemble_v2.py         # Phase 3: blend all submissions
 │   ├── compare_methods.py     # generate method comparison figure
 │   └── run_pipeline.py        # one-command pipeline runner
 ├── notebooks/
 │   ├── 01_eda.ipynb           # 9 EDA visualizations
-│   └── 02_model_analysis.ipynb
+│   ├── 02_model_analysis.ipynb
+│   ├── 03_gnn_v3_analysis.ipynb
+│   └── 04_submission_viz.ipynb
 ├── outputs/
 │   ├── checkpoints/           # model weights per fold (git-ignored)
 │   ├── submissions/           # CSV files (git-ignored)
@@ -221,11 +229,15 @@ python src/predict_v2.py              # MCDropout TTA (30 passes/fold)
 # ── Step 7: CPA ──────────────────────────────────────────────────────────────
 python src/cpa_model.py               # trains + generates submission (~20 min)
 
-# ── Step 8: Ensemble ─────────────────────────────────────────────────────────
+# ── Step 8: GNN v3 (best model) ──────────────────────────────────────────────
+python src/train_v3_local.py          # TransformerConv + TF edges (~2–6 hours)
+python src/predict_v3_local.py        # → outputs/submissions/submission_gnn_v3_local.csv
+
+# ── Step 9: Ensemble ─────────────────────────────────────────────────────────
 python src/ensemble_v2.py             # blends all available submissions
 python src/ensemble_v2.py --optimise  # find optimal weights on OOF predictions
 
-# ── Step 9: Compare ──────────────────────────────────────────────────────────
+# ── Step 10: Compare ────────────────────────────────────────────────────────
 python src/compare_methods.py --show
 ```
 
