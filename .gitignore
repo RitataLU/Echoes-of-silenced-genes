@@ -1,0 +1,50 @@
+# Competition data (Kaggle terms prohibit redistribution)
+data/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Large downloaded external files (auto-downloaded by graph_builder.py)
+external/string_interactions.tsv
+external/go-basic.obo
+external/goa_human.gaf.gz
+
+# Generated outputs (large binary/CSV files)
+outputs/cache/
+outputs/checkpoints/
+outputs/submissions/
+
+# Keep figures and HTML reports
+!outputs/figures/
+!outputs/*.html
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb~
+
+# macOS
+.DS_Store
+*.DS_Store
+
+# Junk install artifact
+=2.1.0
+
+# Claude memory (local only)
+.claude/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Method Explainer — KNN · GNN v2 · GNN v3</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0d1117;color:#e6edf3;line-height:1.6}
+
+/* ── NAV ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(13,17,23,0.92);backdrop-filter:blur(10px);border-bottom:1px solid #21262d;display:flex;align-items:center;gap:6px;padding:10px 32px}
+nav a{color:#8b949e;text-decoration:none;font-size:0.82rem;font-weight:600;padding:6px 14px;border-radius:20px;transition:all .2s}
+nav a:hover,nav a.active{background:#161b22;color:#e6edf3}
+nav .logo{font-size:0.9rem;font-weight:800;color:#58a6ff;margin-right:16px;flex-shrink:0}
+
+/* ── SLIDE ── */
+.slide{min-height:100vh;padding:90px 0 60px;display:flex;align-items:flex-start;justify-content:center}
+.slide-inner{width:100%;max-width:1100px;padding:0 32px}
+.slide:nth-child(odd){background:#0d1117}
+.slide:nth-child(even){background:#161b22}
+
+/* ── SLIDE HEADER ── */
+.slide-eyebrow{font-size:0.7rem;letter-spacing:.2em;text-transform:uppercase;font-weight:700;margin-bottom:8px}
+.slide-title{font-size:clamp(1.8rem,3.5vw,2.8rem);font-weight:900;line-height:1.15;margin-bottom:12px}
+.slide-sub{font-size:1rem;color:#8b949e;max-width:680px;margin-bottom:40px;line-height:1.8}
+
+/* ── COLORS ── */
+.c-blue{color:#58a6ff} .c-green{color:#3fb950} .c-orange{color:#d29922} .c-red{color:#f85149} .c-purple{color:#bc8cff} .c-teal{color:#39d353}
+.bg-blue{background:#1f3d7a} .bg-green{background:#1a3a23} .bg-orange{background:#3d2b00} .bg-purple{background:#2d1b69}
+
+/* ── CARDS ── */
+.card{background:#161b22;border:1px solid #21262d;border-radius:12px;padding:24px;transition:border-color .2s}
+.card:hover{border-color:#58a6ff}
+.card-title{font-size:.85rem;font-weight:700;margin-bottom:10px}
+
+/* ── GRID ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media(max-width:700px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+/* ── COMPARISON TABLE ── */
+.ctable{width:100%;border-collapse:collapse;font-size:.88rem;margin:24px 0}
+.ctable th{background:#1f2937;color:#8b949e;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;padding:12px 16px;text-align:left;border-bottom:2px solid #21262d}
+.ctable td{padding:11px 16px;border-bottom:1px solid #21262d;vertical-align:top}
+.ctable tr:last-child td{border-bottom:none}
+.ctable td:first-child{font-weight:700;color:#e6edf3;width:28%}
+.ctable .knn{color:#d29922} .ctable .v2{color:#58a6ff} .ctable .v3{color:#3fb950}
+
+/* ── FORMULA BOX ── */
+.fbox{background:#010409;border:1px solid #21262d;border-radius:8px;padding:18px 22px;font-family:"SF Mono","Fira Code",monospace;font-size:.84rem;color:#79c0ff;line-height:2;overflow-x:auto;margin:12px 0;white-space:pre}
+.fbox .c{color:#484f58} .fbox .h{color:#3fb950;font-weight:700} .fbox .o{color:#d29922} .fbox .p{color:#bc8cff} .fbox .r{color:#f85149}
+
+/* ── PIPELINE ── */
+.pipe{display:flex;align-items:center;gap:0;flex-wrap:wrap;margin:28px 0}
+.pstep{display:flex;flex-direction:column;align-items:center;flex:1;min-width:90px}
+.pbox{border-radius:10px;padding:12px 10px;font-size:.75rem;font-weight:700;text-align:center;width:100%;line-height:1.4}
+.plabel{font-size:.68rem;color:#484f58;text-align:center;margin-top:6px}
+.parrow{color:#58a6ff;font-size:1.5rem;flex-shrink:0;align-self:center;margin-bottom:20px;padding:0 4px}
+
+/* ── BADGE ── */
+.badge{display:inline-block;font-size:.7rem;font-weight:700;padding:2px 10px;border-radius:20px;letter-spacing:.04em}
+.badge-blue{background:#1f3d7a;color:#58a6ff} .badge-green{background:#1a3a23;color:#3fb950}
+.badge-orange{background:#3d2b00;color:#d29922} .badge-red{background:#3d1414;color:#f85149}
+.badge-purple{background:#2d1b69;color:#bc8cff}
+
+/* ── WMAE BAR ── */
+.wrow{display:flex;align-items:center;gap:12px;margin:8px 0}
+.wlabel{font-size:.82rem;font-weight:600;width:140px;flex-shrink:0;text-align:right}
+.wtrack{flex:1;height:18px;background:#21262d;border-radius:50px;overflow:hidden;position:relative}
+.wfill{height:100%;border-radius:50px;animation:grow 1.4s ease-out forwards;width:0}
+.wval{font-size:.78rem;font-weight:700;width:54px;flex-shrink:0}
+@keyframes grow{from{width:0}to{width:var(--w)}}
+
+/* ── NODE DIAGRAM ── */
+.node-diagram{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin:20px 0}
+.node-circle{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:800;text-align:center;line-height:1.2;flex-shrink:0}
+.edge-line{position:relative;height:2px;flex:1;min-width:40px;align-self:center}
+.edge-line::after{content:'';position:absolute;right:-6px;top:-4px;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid currentColor}
+
+/* ── STAGE BOX ── */
+.stage{border-radius:10px;padding:20px;margin:16px 0;border-left:4px solid}
+.stage h4{font-size:.9rem;font-weight:700;margin-bottom:8px}
+.stage p{font-size:.85rem;color:#8b949e;line-height:1.7}
+.stage.s1{border-color:#58a6ff;background:#0d1f3c}
+.stage.s2{border-color:#bc8cff;background:#1a1033}
+.stage.s3{border-color:#3fb950;background:#0d2116}
+.stage.s4{border-color:#d29922;background:#2a1f00}
+
+/* ── HERO SLIDE ── */
+#hero{background:linear-gradient(160deg,#0d1117 0%,#0d1f3c 50%,#0d1117 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:90px 32px 60px}
+.hero-inner{max-width:860px}
+.hero-title{font-size:clamp(2.4rem,5vw,4rem);font-weight:900;background:linear-gradient(90deg,#58a6ff,#3fb950);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px}
+.hero-sub{font-size:1.1rem;color:#8b949e;margin-bottom:48px;line-height:1.8}
+.method-pills{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:40px}
+.mpill{background:#161b22;border:1px solid #21262d;border-radius:12px;padding:18px 28px;text-align:center;min-width:180px}
+.mpill-name{font-size:1.1rem;font-weight:800;margin-bottom:6px}
+.mpill-score{font-size:1.5rem;font-weight:900;margin-bottom:4px}
+.mpill-desc{font-size:.72rem;color:#8b949e}
+
+/* ── SVG DIAGRAM ── */
+svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.svg-wrap{background:#010409;border:1px solid #21262d;border-radius:12px;padding:20px;overflow:auto;margin:20px 0}
+
+/* ── HIGHLIGHT BOX ── */
+.hbox{background:#0d2116;border:1px solid #238636;border-radius:8px;padding:16px 20px;margin:12px 0}
+.hbox-title{font-size:.8rem;font-weight:700;color:#3fb950;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em}
+.hbox p{font-size:.88rem;color:#8b949e;line-height:1.7}
+
+.sep{height:1px;background:linear-gradient(90deg,transparent,#21262d,transparent);margin:32px 0}
+
+/* ── STEP LIST ── */
+.steps{display:flex;flex-direction:column;gap:12px;margin:16px 0}
+.step{display:flex;gap:14px;align-items:flex-start}
+.step-num{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:800;flex-shrink:0;margin-top:2px}
+.step-body{font-size:.9rem;color:#c9d1d9;line-height:1.7}
+.step-body strong{color:#e6edf3}
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">Method Explainer</span>
+  <a href="#hero">Overview</a>
+  <a href="#knn">KNN</a>
+  <a href="#gnnv2">GNN v2</a>
+  <a href="#gnnv3">GNN v3</a>
+  <a href="#compare">Compare</a>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════ HERO -->
+<section id="hero">
+  <div class="hero-inner">
+    <p class="slide-eyebrow c-blue" style="margin-bottom:12px">Kaggle · Echoes of Silenced Genes</p>
+    <h1 class="hero-title">KNN · GNN v2 · GNN v3</h1>
+    <p class="hero-sub">
+      Zero-shot prediction of gene differential expression after CRISPR knockdown.<br>
+      Three methods — increasingly sophisticated — competing on the same problem.
+    </p>
+
+    <div class="method-pills">
+      <div class="mpill">
+        <div class="mpill-name c-orange">KNN</div>
+        <div class="mpill-score c-orange">0.1232</div>
+        <div class="mpill-desc">Look-up similar genes</div>
+      </div>
+      <div class="mpill">
+        <div class="mpill-name c-blue">GNN v2</div>
+        <div class="mpill-score c-blue">0.1167</div>
+        <div class="mpill-desc">Graph propagation + SVD</div>
+      </div>
+      <div class="mpill">
+        <div class="mpill-name c-green">GNN v3 ★</div>
+        <div class="mpill-score c-green">0.1164</div>
+        <div class="mpill-desc">Transformer + TF edges</div>
+      </div>
+    </div>
+
+    <p style="font-size:.82rem;color:#484f58">Baseline (predict mean): 0.1268 &nbsp;·&nbsp; Lower WMAE = better</p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ THE PROBLEM -->
+<section class="slide" id="problem">
+  <div class="slide-inner">
+    <p class="slide-eyebrow c-orange">Background</p>
+    <h2 class="slide-title">What Problem Are We Solving?</h2>
+    <p class="slide-sub">CRISPR knocks out a gene. We need to predict how every other gene in the cell responds — without ever seeing that gene knocked out before.</p>
+
+    <div class="g2" style="gap:24px">
+      <div>
+        <div class="stage s1">
+          <h4>📥 Input — one gene name</h4>
+          <p>e.g. "knock out <strong>TP53</strong>"<br>
+          That's all we know. No cell data, no experiment.</p>
+        </div>
+        <div class="stage s3">
+          <h4>📤 Output — 5,127 numbers</h4>
+          <p>DE[gene] = mean(knocked-out cells) − mean(normal cells)<br>
+          For every measurable gene in the cell.</p>
+        </div>
+        <div class="stage s4">
+          <h4>⚡ The hard part — zero-shot</h4>
+          <p>120 test genes were <strong>never knocked out during training</strong>.<br>
+          The model must generalise from the 80 training knockouts.</p>
+        </div>
+      </div>
+      <div>
+        <div class="svg-wrap">
+          <svg viewBox="0 0 440 320" width="100%" style="min-height:200px">
+            <!-- cells -->
+            <rect x="20" y="20" width="180" height="130" rx="12" fill="#0d2116" stroke="#238636" stroke-width="1.5"/>
+            <text x="110" y="46" text-anchor="middle" fill="#3fb950" font-size="11" font-weight="700">Normal Cells</text>
+            <circle cx="60"  cy="90" r="18" fill="#1a3a23" stroke="#3fb950" stroke-width="1.2"/>
+            <circle cx="110" cy="80" r="18" fill="#1a3a23" stroke="#3fb950" stroke-width="1.2"/>
+            <circle cx="155" cy="95" r="18" fill="#1a3a23" stroke="#3fb950" stroke-width="1.2"/>
+            <circle cx="80"  cy="125" r="18" fill="#1a3a23" stroke="#3fb950" stroke-width="1.2"/>
+            <circle cx="135" cy="130" r="18" fill="#1a3a23" stroke="#3fb950" stroke-width="1.2"/>
+
+            <rect x="240" y="20" width="180" height="130" rx="12" fill="#3d1414" stroke="#f85149" stroke-width="1.5"/>
+            <text x="330" y="46" text-anchor="middle" fill="#f85149" font-size="11" font-weight="700">Knocked-out Cells</text>
+            <!-- X on one nucleus -->
+            <circle cx="280" cy="90" r="18" fill="#3d1414" stroke="#f85149" stroke-width="1.2"/>
+            <line x1="273" y1="83" x2="287" y2="97" stroke="#f85149" stroke-width="2.5"/>
+            <line x1="287" y1="83" x2="273" y2="97" stroke="#f85149" stroke-width="2.5"/>
+            <circle cx="330" cy="80" r="18" fill="#3d1414" stroke="#f85149" stroke-width="1.2"/>
+            <circle cx="375" cy="95" r="18" fill="#3d1414" stroke="#f85149" stroke-width="1.2"/>
+            <circle cx="300" cy="125" r="18" fill="#3d1414" stroke="#f85149" stroke-width="1.2"/>
+            <circle cx="355" cy="130" r="18" fill="#3d1414" stroke="#f85149" stroke-width="1.2"/>
+
+            <!-- arrow -->
+            <text x="220" y="95" text-anchor="middle" fill="#484f58" font-size="22">−</text>
+
+            <!-- result -->
+            <rect x="80" y="190" width="280" height="110" rx="12" fill="#0d1f3c" stroke="#58a6ff" stroke-width="1.5"/>
+            <text x="220" y="215" text-anchor="middle" fill="#58a6ff" font-size="11" font-weight="700">DE Values (5,127 genes)</text>
+            <!-- mini bar chart -->
+            <rect x="100" y="240" width="8" height="30" fill="#3fb950" opacity=".8"/>
+            <rect x="115" y="250" width="8" height="20" fill="#3fb950" opacity=".8"/>
+            <rect x="130" y="235" width="8" height="35" fill="#3fb950" opacity=".8"/>
+            <rect x="145" y="255" width="8" height="15" fill="#58a6ff" opacity=".8"/>
+            <rect x="160" y="230" width="8" height="40" fill="#f85149" opacity=".8"/>
+            <rect x="175" y="248" width="8" height="22" fill="#f85149" opacity=".8"/>
+            <rect x="190" y="242" width="8" height="28" fill="#3fb950" opacity=".8"/>
+            <rect x="205" y="260" width="8" height="10" fill="#58a6ff" opacity=".8"/>
+            <rect x="220" y="235" width="8" height="35" fill="#f85149" opacity=".8"/>
+            <rect x="235" y="250" width="8" height="20" fill="#3fb950" opacity=".8"/>
+            <rect x="250" y="238" width="8" height="32" fill="#3fb950" opacity=".8"/>
+            <rect x="265" y="255" width="8" height="15" fill="#f85149" opacity=".8"/>
+            <rect x="280" y="245" width="8" height="25" fill="#58a6ff" opacity=".8"/>
+            <rect x="295" y="240" width="8" height="30" fill="#3fb950" opacity=".8"/>
+            <line x1="100" y1="270" x2="320" y2="270" stroke="#21262d" stroke-width="1"/>
+            <!-- down arrow from cells to result -->
+            <line x1="220" y1="155" x2="220" y2="185" stroke="#58a6ff" stroke-width="2" stroke-dasharray="4,3"/>
+            <polygon points="215,185 225,185 220,193" fill="#58a6ff"/>
+          </svg>
+        </div>
+        <p style="font-size:.8rem;color:#484f58;text-align:center">DE = mean(perturbed) − mean(non-targeting control)</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ KNN -->
+<section class="slide" id="knn">
+  <div class="slide-inner">
+    <p class="slide-eyebrow c-orange">Method 1</p>
+    <h2 class="slide-title c-orange">KNN — K-Nearest Neighbours</h2>
+    <p class="slide-sub">The simplest idea: if two genes look similar, they probably respond similarly to perturbation.</p>
+
+    <div class="g2" style="gap:28px;margin-bottom:28px">
+      <div>
+        <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px">How It Works (3 steps)</h3>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num" style="background:#3d2b00;color:#d29922">1</div>
+            <div class="step-body"><strong>Represent each gene as a vector</strong><br>
+            Use the 119D node features (expression + co-exp + GO) to describe each gene numerically.</div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:#3d2b00;color:#d29922">2</div>
+            <div class="step-body"><strong>Find the 5 most similar training genes</strong><br>
+            Compute cosine/Euclidean distance in 119D space. Return top-5 neighbours that were <em>actually knocked out in training</em>.</div>
+          </div>
+          <div class="step">
+            <div class="step-num" style="background:#3d2b00;color:#d29922">3</div>
+            <div class="step-body"><strong>Average their DE profiles</strong><br>
+            Prediction = mean of the 5 neighbours' known DE vectors (5127D each).</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="svg-wrap">
+          <svg viewBox="0 0 400 300" width="100%">
+            <!-- test gene -->
+            <circle cx="200" cy="150" r="28" fill="#3d2b00" stroke="#d29922" stroke-width="2.5"/>
+            <text x="200" y="146" text-anchor="middle" fill="#d29922" font-size="9" font-weight="700">TEST</text>
+            <text x="200" y="158" text-anchor="middle" fill="#d29922" font-size="9" font-weight="700">GENE</text>
+            <text x="200" y="190" text-anchor="middle" fill="#484f58" font-size="10">e.g. TP53</text>
+
+            <!-- neighbours with distance lines -->
+            <line x1="200" y1="122" x2="200" y2="58" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="4,3" opacity=".7"/>
+            <circle cx="200" cy="40" r="20" fill="#1a3a23" stroke="#3fb950" stroke-width="1.5"/>
+            <text x="200" y="36" text-anchor="middle" fill="#3fb950" font-size="8">GENE_A</text>
+            <text x="200" y="47" text-anchor="middle" fill="#3fb950" font-size="8">d=0.12</text>
+
+            <line x1="172" y1="135" x2="90" y2="80" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="4,3" opacity=".7"/>
+            <circle cx="72" cy="68" r="20" fill="#1a3a23" stroke="#3fb950" stroke-width="1.5"/>
+            <text x="72" y="64" text-anchor="middle" fill="#3fb950" font-size="8">GENE_B</text>
+            <text x="72" y="75" text-anchor="middle" fill="#3fb950" font-size="8">d=0.18</text>
+
+            <line x1="172" y1="163" x2="90" y2="220" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="4,3" opacity=".7"/>
+            <circle cx="72" cy="232" r="20" fill="#1a3a23" stroke="#3fb950" stroke-width="1.5"/>
+            <text x="72" y="228" text-anchor="middle" fill="#3fb950" font-size="8">GENE_C</text>
+            <text x="72" y="239" text-anchor="middle" fill="#3fb950" font-size="8">d=0.24</text>
+
+            <line x1="228" y1="135" x2="310" y2="80" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="4,3" opacity=".7"/>
+            <circle cx="328" cy="68" r="20" fill="#1a3a23" stroke="#3fb950" stroke-width="1.5"/>
+            <text x="328" y="64" text-anchor="middle" fill="#3fb950" font-size="8">GENE_D</text>
+            <text x="328" y="75" text-anchor="middle" fill="#3fb950" font-size="8">d=0.29</text>
+
+            <line x1="228" y1="163" x2="310" y2="220" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="4,3" opacity=".7"/>
+            <circle cx="328" cy="232" r="20" fill="#1a3a23" stroke="#3fb950" stroke-width="1.5"/>
+            <text x="328" y="228" text-anchor="middle" fill="#3fb950" font-size="8">GENE_E</text>
+            <text x="328" y="239" text-anchor="middle" fill="#3fb950" font-size="8">d=0.33</text>
+
+            <!-- faraway gene (not selected) -->
+            <circle cx="360" cy="150" r="16" fill="#1f2937" stroke="#484f58" stroke-width="1" opacity=".5"/>
+            <text x="360" y="155" text-anchor="middle" fill="#484f58" font-size="8">far</text>
+
+            <!-- legend -->
+            <circle cx="26" cy="280" r="7" fill="#1a3a23" stroke="#3fb950" stroke-width="1.2"/>
+            <text x="38" y="284" fill="#8b949e" font-size="9">top-5 neighbours (known DE)</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="g3" style="gap:16px">
+      <div class="card" style="border-color:#3d2b00">
+        <div class="card-title c-orange">Key Parameters</div>
+        <table style="font-size:.82rem;width:100%">
+          <tr><td style="color:#8b949e;padding:4px 0">k (neighbours)</td><td style="text-align:right;font-weight:700">5</td></tr>
+          <tr><td style="color:#8b949e;padding:4px 0">STRING score threshold</td><td style="text-align:right;font-weight:700">≥ 400</td></tr>
+          <tr><td style="color:#8b949e;padding:4px 0">Feature dim</td><td style="text-align:right;font-weight:700">119D</td></tr>
+          <tr><td style="color:#8b949e;padding:4px 0">Training needed</td><td style="text-align:right;font-weight:700;color:#3fb950">None</td></tr>
+        </table>
+      </div>
+      <div class="card" style="border-color:#238636">
+        <div class="card-title c-green">✓ Strengths</div>
+        <ul style="font-size:.83rem;color:#8b949e;padding-left:16px;line-height:2">
+          <li>No training required</li>
+          <li>Interpretable — you can see which genes were used</li>
+          <li>Fast (seconds to run)</li>
+          <li>Strong when similar genes exist</li>
+        </ul>
+      </div>
+      <div class="card" style="border-color:#f85149">
+        <div class="card-title c-red">✗ Limitations</div>
+        <ul style="font-size:.83rem;color:#8b949e;padding-left:16px;line-height:2">
+          <li>Averages out subtle differences</li>
+          <li>Fails for unique genes with no close neighbours</li>
+          <li>Ignores <em>indirect</em> regulatory paths</li>
+          <li>Can't model non-linear interactions</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="hbox" style="margin-top:20px;background:#2a1f00;border-color:#d29922">
+      <div class="hbox-title" style="color:#d29922">Result</div>
+      <p>OOF WMAE = <strong style="color:#d29922">0.1232</strong> &nbsp;·&nbsp; −2.8% vs baseline &nbsp;·&nbsp; Strong for a zero-training method, but misses indirect regulatory effects captured by graph propagation.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ GNN v2 -->
+<section class="slide" id="gnnv2">
+  <div class="slide-inner">
+    <p class="slide-eyebrow c-blue">Method 2</p>
+    <h2 class="slide-title c-blue">GNN v2 — Graph Neural Network</h2>
+    <p class="slide-sub">Instead of looking up similar genes, propagate the perturbation signal through a gene interaction network, then decode predictions through compressed gene programs.</p>
+
+    <!-- PIPELINE -->
+    <div class="pipe">
+      <div class="pstep"><div class="pbox" style="background:#0d1f3c;color:#58a6ff;border:1px solid #1f3d7a">Raw Data<br>17,882 cells</div><div class="plabel">h5ad file</div></div>
+      <div class="parrow">→</div>
+      <div class="pstep"><div class="pbox" style="background:#1a0d33;color:#bc8cff;border:1px solid #2d1b69">Build Graph<br>5155 nodes</div><div class="plabel">STRING + coexp</div></div>
+      <div class="parrow">→</div>
+      <div class="pstep"><div class="pbox" style="background:#0d2116;color:#3fb950;border:1px solid #238636">119D Features<br>per gene</div><div class="plabel">expr+PCA+GO</div></div>
+      <div class="parrow">→</div>
+      <div class="pstep"><div class="pbox" style="background:#0d1f3c;color:#58a6ff;border:1px solid #1f3d7a">Stage 1<br>GAT Encoder</div><div class="plabel">h_base (N×128)</div></div>
+      <div class="parrow">→</div>
+      <div class="pstep"><div class="pbox" style="background:#1a0d33;color:#bc8cff;border:1px solid #2d1b69">Stage 2<br>Pert. Propagate</div><div class="plabel">h_final (N×128)</div></div>
+      <div class="parrow">→</div>
+      <div class="pstep"><div class="pbox" style="background:#2a1f00;color:#d29922;border:1px solid #3d2b00">SVD Decode<br>W(64) → DE(5127)</div><div class="plabel">Gene Programs</div></div>
+    </div>
+
+    <div class="g2" style="gap:24px;margin-top:12px">
+      <!-- Stage 1 & 2 -->
+      <div>
+        <div class="stage s1">
+          <h4>⬡ Stage 1 — Context Encoder</h4>
+          <p>Run 2 layers of GAT (Graph Attention) over all 5155 genes. Each gene gathers information from its neighbours. Result: <code style="color:#58a6ff">h_base</code> = "what does this gene look like in a normal cell, given its network context?"</p>
+        </div>
+        <div class="stage s2">
+          <h4>⚡ Stage 2 — Perturbation Propagation</h4>
+          <p>Take the knocked-out gene's embedding. Build a perturbation signal. Broadcast it to ALL nodes, then run GAT again. Result: <code style="color:#bc8cff">h_final</code> = "how does each gene change after the knockdown signal propagates through the network?"</p>
+        </div>
+        <div class="stage s3">
+          <h4>🧬 Gene Programs (SVD)</h4>
+          <p>Instead of predicting 5127 numbers directly, predict <strong>64 program scores</strong>. Each program = a group of genes that go up/down together. Decode: <code style="color:#3fb950">DE = W_scores @ H_matrix</code></p>
+        </div>
+      </div>
+
+      <!-- SVD visual + GAT attention -->
+      <div>
+        <div class="svg-wrap">
+          <svg viewBox="0 0 420 260" width="100%">
+            <!-- Title -->
+            <text x="210" y="22" text-anchor="middle" fill="#8b949e" font-size="10" font-weight="700">GAT Attention — how one gene gathers from neighbours</text>
+
+            <!-- Central gene being updated -->
+            <circle cx="210" cy="130" r="30" fill="#0d1f3c" stroke="#58a6ff" stroke-width="2.5"/>
+            <text x="210" y="126" text-anchor="middle" fill="#58a6ff" font-size="9" font-weight="700">TARGET</text>
+            <text x="210" y="138" text-anchor="middle" fill="#58a6ff" font-size="9">gene i</text>
+
+            <!-- Neighbours with attention weights -->
+            <circle cx="100" cy="70"  r="22" fill="#0d2116" stroke="#3fb950" stroke-width="1.5"/>
+            <text x="100" y="75" text-anchor="middle" fill="#3fb950" font-size="9">TF_A</text>
+
+            <circle cx="320" cy="70"  r="22" fill="#0d2116" stroke="#3fb950" stroke-width="1.5"/>
+            <text x="320" y="75" text-anchor="middle" fill="#3fb950" font-size="9">KIN_B</text>
+
+            <circle cx="80"  cy="190" r="22" fill="#0d2116" stroke="#3fb950" stroke-width="1.5"/>
+            <text x="80" y="195" text-anchor="middle" fill="#3fb950" font-size="9">CO_C</text>
+
+            <circle cx="340" cy="190" r="22" fill="#0d2116" stroke="#3fb950" stroke-width="1.5"/>
+            <text x="340" y="195" text-anchor="middle" fill="#3fb950" font-size="9">PPI_D</text>
+
+            <!-- Attention weighted edges (thicker = higher attention) -->
+            <line x1="118" y1="82"  x2="184" y2="112" stroke="#3fb950" stroke-width="4" opacity=".9"/>
+            <text x="140" y="90" fill="#3fb950" font-size="9" font-weight="700">α=0.42</text>
+
+            <line x1="298" y1="82"  x2="236" y2="112" stroke="#3fb950" stroke-width="2.5" opacity=".7"/>
+            <text x="266" y="90" fill="#3fb950" font-size="9" font-weight="700">α=0.28</text>
+
+            <line x1="100" y1="168" x2="185" y2="148" stroke="#3fb950" stroke-width="1.5" opacity=".5"/>
+            <text x="118" y="155" fill="#484f58" font-size="9">α=0.18</text>
+
+            <line x1="318" y1="172" x2="238" y2="148" stroke="#3fb950" stroke-width="1" opacity=".4"/>
+            <text x="276" y="158" fill="#484f58" font-size="9">α=0.12</text>
+
+            <!-- Result -->
+            <text x="210" y="240" text-anchor="middle" fill="#8b949e" font-size="10">h_i_new = Σ α_ij × W × h_j</text>
+            <text x="210" y="255" text-anchor="middle" fill="#484f58" font-size="9">weighted sum of neighbour features</text>
+          </svg>
+        </div>
+
+        <!-- SVD decomposition -->
+        <div style="background:#010409;border:1px solid #21262d;border-radius:8px;padding:16px;margin-top:12px">
+          <p style="font-size:.78rem;font-weight:700;color:#d29922;margin-bottom:10px">Gene Programs (SVD decomposition)</p>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.8rem">
+            <div style="text-align:center">
+              <div style="background:#0d1f3c;border:1px solid #58a6ff;border-radius:6px;padding:8px 12px;color:#58a6ff;font-family:monospace">DE<br><span style="font-size:.68rem;color:#484f58">80 × 5127</span></div>
+            </div>
+            <div style="color:#8b949e;font-size:1.2rem">≈</div>
+            <div style="text-align:center">
+              <div style="background:#0d2116;border:1px solid #3fb950;border-radius:6px;padding:8px 12px;color:#3fb950;font-family:monospace">W<br><span style="font-size:.68rem;color:#484f58">80 × 64</span></div>
+              <div style="font-size:.7rem;color:#484f58;margin-top:4px">model predicts this</div>
+            </div>
+            <div style="color:#8b949e;font-size:1.2rem">×</div>
+            <div style="text-align:center">
+              <div style="background:#2a1f00;border:1px solid #d29922;border-radius:6px;padding:8px 12px;color:#d29922;font-family:monospace">H<br><span style="font-size:.68rem;color:#484f58">64 × 5127</span></div>
+              <div style="font-size:.7rem;color:#484f58;margin-top:4px">fixed (pre-computed)</div>
+            </div>
+          </div>
+          <p style="font-size:.78rem;color:#484f58;margin-top:10px">64 programs explain 98% of variance in training DE. Each program = a biologically coherent gene cluster.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px">5 Key Innovations in v2</h3>
+    <div class="g4" style="gap:14px">
+      <div class="card">
+        <span class="badge badge-blue" style="margin-bottom:8px">①</span>
+        <div class="card-title">Gene Programs</div>
+        <p style="font-size:.8rem;color:#8b949e">Output 64D instead of 5127D. Reduces task complexity, improves generalisation.</p>
+      </div>
+      <div class="card">
+        <span class="badge badge-purple" style="margin-bottom:8px">②</span>
+        <div class="card-title">Curriculum Loss</div>
+        <p style="font-size:.8rem;color:#8b949e">Epoch 1–20: Huber (tolerates outliers). Epoch 21+: Weighted MAE (matches competition metric).</p>
+      </div>
+      <div class="card">
+        <span class="badge badge-green" style="margin-bottom:8px">③</span>
+        <div class="card-title">MCDropout TTA</div>
+        <p style="font-size:.8rem;color:#8b949e">At inference: keep dropout ON, average 30 passes. Free ensemble from one model.</p>
+      </div>
+      <div class="card">
+        <span class="badge badge-orange" style="margin-bottom:8px">④</span>
+        <div class="card-title">DropEdge</div>
+        <p style="font-size:.8rem;color:#8b949e">Randomly remove 10% edges per batch. Forces the model to not over-rely on any single connection.</p>
+      </div>
+    </div>
+
+    <div class="hbox" style="margin-top:20px">
+      <div class="hbox-title">Result</div>
+      <p>OOF WMAE = <strong style="color:#3fb950">0.1167</strong> &nbsp;·&nbsp; −7.9% vs baseline &nbsp;·&nbsp; Best model until GNN v3.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ GNN v3 -->
+<section class="slide" id="gnnv3">
+  <div class="slide-inner">
+    <p class="slide-eyebrow c-green">Method 3 — Best Model</p>
+    <h2 class="slide-title c-green">GNN v3 — GraphTransformer + TF Edges</h2>
+    <p class="slide-sub">Same two-stage framework as v2, but with three architectural upgrades that add richer attention, edge type awareness, and real biological regulatory knowledge.</p>
+
+    <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px;color:#8b949e">What changed from v2 → v3</h3>
+    <table class="ctable">
+      <thead><tr><th>Component</th><th class="knn" style="color:#8b949e">GNN v2</th><th class="v3">GNN v3</th><th>Why It Matters</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Attention mechanism</td>
+          <td style="color:#8b949e">GATConv<br><span style="font-size:.75rem;color:#484f58">Additive attention</span></td>
+          <td class="v3">TransformerConv<br><span style="font-size:.75rem;color:#484f58">Dot-product Q·K/√d</span></td>
+          <td style="font-size:.83rem;color:#8b949e">Richer gradient signal; better at distinguishing similar genes</td>
+        </tr>
+        <tr>
+          <td>Edge features</td>
+          <td style="color:#8b949e">Scalar weight<br><span style="font-size:.75rem;color:#484f58">(E,) — 1 number</span></td>
+          <td class="v3">EdgeEncoder<br><span style="font-size:.75rem;color:#484f58">(E, 2) → 32D</span></td>
+          <td style="font-size:.83rem;color:#8b949e">Model can treat TF edges differently from PPI edges</td>
+        </tr>
+        <tr>
+          <td>Edge types</td>
+          <td style="color:#8b949e">2 types<br><span style="font-size:.75rem;color:#484f58">STRING + co-exp (undirected)</span></td>
+          <td class="v3">3 types + directed<br><span style="font-size:.75rem;color:#484f58">+ TF activating / repressing</span></td>
+          <td style="font-size:.83rem;color:#8b949e">Encodes causal biology: TF → target (not just correlation)</td>
+        </tr>
+        <tr>
+          <td>TF regulatory data</td>
+          <td style="color:#8b949e">Not used</td>
+          <td class="v3">DoRothEA A+B<br><span style="font-size:.75rem;color:#484f58">~170K TF→target pairs</span></td>
+          <td style="font-size:.83rem;color:#8b949e">Transcription factor knockouts have direct downstream mechanistic effects</td>
+        </tr>
+        <tr>
+          <td>Skip connection</td>
+          <td style="color:#8b949e">Manual residual_proj</td>
+          <td class="v3">Learnable β scalar</td>
+          <td style="font-size:.83rem;color:#8b949e">Model decides how much to mix old vs new representation</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="sep"></div>
+
+    <div class="g2" style="gap:28px">
+      <div>
+        <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px">Upgrade 1 — TransformerConv Attention</h3>
+        <div class="stage s1" style="margin-bottom:14px">
+          <h4>GAT (v2): Additive attention</h4>
+          <div class="fbox">α = <span class="h">softmax</span>( <span class="o">LeakyReLU</span>( a · [Wh_i ‖ Wh_j] ) )
+<span class="c">-- learns a fixed "scoring function" for each pair</span>
+<span class="c">-- can't use edge features directly</span></div>
+        </div>
+        <div class="stage s3">
+          <h4>TransformerConv (v3): Dot-product attention</h4>
+          <div class="fbox">α = <span class="h">softmax</span>( (<span class="p">Q_i</span> · <span class="p">K_j</span> + <span class="o">W_e · e_ij</span>) / √d )
+<span class="c">-- Q_i = query (what am I looking for?)</span>
+<span class="c">-- K_j = key   (what does neighbour offer?)</span>
+<span class="o">-- e_ij = EdgeEncoder output ← edge features!</span>
+<span class="c">-- β = learnable skip: h = β·h_in + (1-β)·agg</span></div>
+        </div>
+      </div>
+
+      <div>
+        <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px">Upgrade 2 — TF Regulatory Edges</h3>
+        <div class="svg-wrap">
+          <svg viewBox="0 0 400 260" width="100%">
+            <text x="200" y="20" text-anchor="middle" fill="#8b949e" font-size="10" font-weight="700">Graph edge types in v3</text>
+
+            <!-- Legend boxes -->
+            <rect x="20" y="35" width="14" height="14" rx="3" fill="#58a6ff" opacity=".7"/>
+            <text x="40" y="46" fill="#8b949e" font-size="9">STRING PPI (undirected, type=0)</text>
+            <rect x="20" y="56" width="14" height="14" rx="3" fill="#bc8cff" opacity=".7"/>
+            <text x="40" y="67" fill="#8b949e" font-size="9">Co-expression (undirected, type=0)</text>
+            <rect x="20" y="77" width="14" height="14" rx="3" fill="#3fb950"/>
+            <text x="40" y="88" fill="#8b949e" font-size="9">TF Activating → (directed, type=1)</text>
+            <rect x="20" y="98" width="14" height="14" rx="3" fill="#f85149"/>
+            <text x="40" y="109" fill="#8b949e" font-size="9">TF Repressing → (directed, type=2)</text>
+
+            <!-- Gene diagram -->
+            <!-- TF gene (knocked out) -->
+            <circle cx="120" cy="185" r="26" fill="#3d1414" stroke="#f85149" stroke-width="2.5"/>
+            <text x="120" y="181" text-anchor="middle" fill="#f85149" font-size="8" font-weight="700">TF GENE</text>
+            <text x="120" y="193" text-anchor="middle" fill="#f85149" font-size="8">(knocked out)</text>
+
+            <!-- Target genes -->
+            <circle cx="240" cy="145" r="20" fill="#0d2116" stroke="#3fb950" stroke-width="1.5"/>
+            <text x="240" y="150" text-anchor="middle" fill="#3fb950" font-size="8">target_1</text>
+
+            <circle cx="310" cy="185" r="20" fill="#0d2116" stroke="#3fb950" stroke-width="1.5"/>
+            <text x="310" y="190" text-anchor="middle" fill="#3fb950" font-size="8">target_2</text>
+
+            <circle cx="240" cy="230" r="20" fill="#3d1414" stroke="#f85149" stroke-width="1.5"/>
+            <text x="240" y="235" text-anchor="middle" fill="#f85149" font-size="8">target_3</text>
+
+            <!-- PPI edge (bidirectional) -->
+            <line x1="146" y1="175" x2="218" y2="153" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="3,3" opacity=".6"/>
+            <polygon points="218,153 208,152 213,162" fill="#58a6ff" opacity=".6"/>
+            <polygon points="146,175 156,176 151,166" fill="#58a6ff" opacity=".6"/>
+
+            <!-- TF activating arrows (directed, one way) -->
+            <line x1="144" y1="172" x2="288" y2="155" stroke="#3fb950" stroke-width="2"/>
+            <polygon points="288,155 278,151 281,161" fill="#3fb950"/>
+            <text x="210" y="158" fill="#3fb950" font-size="8">activates</text>
+
+            <!-- TF repressing arrow -->
+            <line x1="144" y1="196" x2="219" y2="223" stroke="#f85149" stroke-width="2"/>
+            <polygon points="219,223 213,214 222,212" fill="#f85149"/>
+            <text x="160" y="220" fill="#f85149" font-size="8">represses</text>
+
+            <!-- PPI edge target_1 - target_2 -->
+            <line x1="260" y1="155" x2="290" y2="170" stroke="#bc8cff" stroke-width="1.5" stroke-dasharray="3,3" opacity=".5"/>
+
+            <!-- EdgeEncoder label -->
+            <rect x="200" y="120" width="120" height="20" rx="4" fill="#0d1f3c" stroke="#58a6ff" stroke-width="1" opacity=".8"/>
+            <text x="260" y="133" text-anchor="middle" fill="#58a6ff" font-size="8">EdgeEncoder [score, type] → 32D</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px">Upgrade 3 — EdgeEncoder Architecture</h3>
+    <div class="pipe" style="flex-wrap:nowrap;overflow-x:auto">
+      <div class="pstep" style="min-width:120px"><div class="pbox" style="background:#0d1f3c;color:#58a6ff;border:1px solid #1f3d7a;font-size:.72rem">edge_attr<br>(E, 2)<br>[0.8, type=1]</div><div class="plabel">raw edge</div></div>
+      <div class="parrow">→</div>
+      <div class="pstep" style="min-width:120px"><div class="pbox" style="background:#2d1b69;color:#bc8cff;border:1px solid #2d1b69;font-size:.72rem">TypeEmbedding<br>3 types → 16D</div><div class="plabel">learned vocab</div></div>
+      <div class="parrow">+</div>
+      <div class="pstep" style="min-width:120px"><div class="pbox" style="background:#0d1f3c;color:#58a6ff;border:1px solid #1f3d7a;font-size:.72rem">WeightLinear<br>1 → 16D</div><div class="plabel">score projection</div></div>
+      <div class="parrow">→</div>
+      <div class="pstep" style="min-width:120px"><div class="pbox" style="background:#0d2116;color:#3fb950;border:1px solid #238636;font-size:.72rem">concat → 32D<br>Linear + ReLU</div><div class="plabel">edge features</div></div>
+      <div class="parrow">→</div>
+      <div class="pstep" style="min-width:130px"><div class="pbox" style="background:#2a1f00;color:#d29922;border:1px solid #3d2b00;font-size:.72rem">TransformerConv<br>edge_dim = 32</div><div class="plabel">modulates attention</div></div>
+    </div>
+    <p style="font-size:.8rem;color:#484f58;margin-top:8px">EdgeEncoder is called <strong style="color:#e6edf3">once per batch</strong> (after DropEdge), shared across all perturbation samples in the batch → efficient.</p>
+
+    <div class="hbox" style="margin-top:24px">
+      <div class="hbox-title">Result — New Best</div>
+      <p>OOF WMAE = <strong style="color:#3fb950">0.1164</strong> &nbsp;·&nbsp; −8.2% vs baseline &nbsp;·&nbsp; +0.3% improvement over GNN v2. TransformerConv + TF regulatory edges provide richer gradient signal and encode causal TF→target biology.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════ COMPARE -->
+<section class="slide" id="compare">
+  <div class="slide-inner">
+    <p class="slide-eyebrow" style="color:#bc8cff">Summary</p>
+    <h2 class="slide-title">All Methods Compared</h2>
+    <p class="slide-sub">OOF WMAE across all 7 methods. Lower is better. Baseline = predict mean DE vector (WMAE 0.1268).</p>
+
+    <div style="margin:32px 0;max-width:700px">
+      <div class="wrow"><div class="wlabel c-green" style="font-weight:800">GNN v3 ★</div><div class="wtrack"><div class="wfill" style="--w:89%;background:linear-gradient(90deg,#1a3a23,#3fb950)"></div></div><div class="wval c-green">0.1164</div></div>
+      <div class="wrow"><div class="wlabel c-blue">GNN v2</div><div class="wtrack"><div class="wfill" style="--w:87%;background:linear-gradient(90deg,#0d1f3c,#58a6ff)"></div></div><div class="wval c-blue">0.1167</div></div>
+      <div class="wrow"><div class="wlabel c-orange">KNN</div><div class="wtrack"><div class="wfill" style="--w:72%;background:linear-gradient(90deg,#3d2b00,#d29922)"></div></div><div class="wval c-orange">0.1232</div></div>
+      <div class="wrow"><div class="wlabel" style="color:#8b949e">GNN v1</div><div class="wtrack"><div class="wfill" style="--w:68%;background:#21262d"></div></div><div class="wval" style="color:#8b949e">0.1239</div></div>
+      <div class="wrow">
+        <div class="wlabel" style="color:#484f58;font-style:italic">Baseline</div>
+        <div class="wtrack" style="position:relative">
+          <div class="wfill" style="--w:50%;background:#2a1a00;opacity:.5"></div>
+          <div style="position:absolute;left:50%;top:0;bottom:0;width:2px;background:#d29922;opacity:.7"></div>
+        </div>
+        <div class="wval" style="color:#484f58">0.1268</div>
+      </div>
+      <div class="wrow"><div class="wlabel c-red">LGBM</div><div class="wtrack"><div class="wfill" style="--w:36%;background:linear-gradient(90deg,#3d1414,#f85149)"></div></div><div class="wval c-red">0.1311</div></div>
+      <div class="wrow"><div class="wlabel c-red">MLP</div><div class="wtrack"><div class="wfill" style="--w:34%;background:linear-gradient(90deg,#3d1414,#f85149)"></div></div><div class="wval c-red">0.1318</div></div>
+      <div class="wrow"><div class="wlabel c-red">CPA</div><div class="wtrack"><div class="wfill" style="--w:20%;background:linear-gradient(90deg,#3d1414,#f85149)"></div></div><div class="wval c-red">0.1414</div></div>
+    </div>
+
+    <div class="sep"></div>
+
+    <h3 style="font-size:1rem;font-weight:700;margin-bottom:20px">Why graph-based methods dominate</h3>
+    <div class="g3" style="gap:18px">
+      <div class="card" style="border-color:#58a6ff">
+        <span class="badge badge-blue" style="margin-bottom:10px">Graph Methods (GNN)</span>
+        <p style="font-size:.85rem;color:#8b949e;line-height:1.8">Use <strong style="color:#e6edf3">indirect regulatory paths</strong>. Gene A → Gene B → Gene C. Knockdown of A affects C even without a direct edge. LGBM/MLP treat each gene pair independently — they miss this cascade.</p>
+      </div>
+      <div class="card" style="border-color:#d29922">
+        <span class="badge badge-orange" style="margin-bottom:10px">KNN (feature similarity)</span>
+        <p style="font-size:.85rem;color:#8b949e;line-height:1.8">Averages across similar training genes. Works well when the test gene has close neighbours in feature space. Fails for unique genes or when indirect effects dominate.</p>
+      </div>
+      <div class="card" style="border-color:#f85149">
+        <span class="badge badge-red" style="margin-bottom:10px">LGBM / MLP / CPA</span>
+        <p style="font-size:.85rem;color:#8b949e;line-height:1.8">Model each (pert, target_gene) pair independently. No network topology awareness. Good at interpolating within known training distribution, bad at <strong style="color:#e6edf3">zero-shot extrapolation</strong>.</p>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px">Next Step — Ensemble</h3>
+    <div class="stage s4">
+      <h4>Optimal blend of complementary models</h4>
+      <div class="fbox">pred = <span class="h">w1</span> × GNN_v3  +  <span class="p">w2</span> × GNN_v2  +  <span class="o">w3</span> × KNN
+<span class="c">-- GNN v3 captures graph topology + TF causality</span>
+<span class="c">-- KNN captures feature-space similarity (complementary)</span>
+<span class="c">-- Optimize w1,w2,w3 by minimizing OOF WMAE</span>
+<span class="h">Expected improvement: further −0.003 to −0.008</span></div>
+    </div>
+
+    <div style="margin-top:48px;padding:28px;background:#161b22;border-radius:12px;border:1px solid #21262d;text-align:center">
+      <p style="font-size:.78rem;color:#484f58">Generated 2026-03-16 &nbsp;·&nbsp; Kaggle: Echoes of Silenced Genes &nbsp;·&nbsp; Best WMAE: 0.1164 (GNN v3)</p>
+    </div>
+  </div>
+</section>
+
+<script>
+// Highlight nav link based on scroll
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('nav a');
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      navLinks.forEach(l => l.classList.remove('active'));
+      const link = document.querySelector(`nav a[href="#${e.target.id}"]`);
+      if (link) link.classList.add('active');
+    }
+  });
+}, {threshold: 0.3});
+sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>
