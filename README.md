@@ -6,7 +6,8 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Predict the transcriptional response (differential expression across **5,127 genes**) caused by CRISPRi knockdown of a single gene — without ever seeing those test genes during training.
-Kaggle challenge link: (https://www.kaggle.com/competitions/echoes-of-silenced-genes)
+
+> Kaggle challenge:https://www.kaggle.com/competitions/echoes-of-silenced-genes
 
 > **Challenge**: 80 training perturbations → predict 120 unseen ones (60 val + 60 test). Zero overlap.
 
